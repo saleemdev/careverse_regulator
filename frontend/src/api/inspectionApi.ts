@@ -1,8 +1,11 @@
 import dayjs from 'dayjs'
 import { apiRequest } from '@/utils/api'
+import { batchPromises } from '@/utils/promise'
 import type {
   Inspection,
   BackendInspection,
+  Finding,
+  BackendFinding,
   FrappeListResponse,
   FrappeDocResponse,
   CreateInspectionPayload,
@@ -13,8 +16,29 @@ import type {
 
 const INSPECTION_DOCTYPE = 'Inspection'
 
-export function transformInspection(backendInspection: BackendInspection): Inspection {
+export function transformFinding(backendFinding: BackendFinding, parentInspection?: Inspection): Finding {
   return {
+    id: backendFinding.name,
+    findingId: backendFinding.name,
+    idx: backendFinding.idx,
+    category: backendFinding.category,
+    severity: backendFinding.severity,
+    description: backendFinding.description,
+    status: backendFinding.status,
+    correctiveAction: backendFinding.corrective_action || undefined,
+    dueDate: backendFinding.due_date ? formatDateForFrontend(backendFinding.due_date) : undefined,
+    resolvedDate: backendFinding.resolved_date ? formatDateForFrontend(backendFinding.resolved_date) : undefined,
+    attachments: backendFinding.attachments || [],
+    // Add context from parent inspection if provided
+    facilityName: parentInspection?.facilityName,
+    inspectorName: parentInspection?.inspector,
+    inspectionId: parentInspection?.inspectionId,
+    inspectionDate: parentInspection?.date,
+  }
+}
+
+export function transformInspection(backendInspection: BackendInspection): Inspection {
+  const inspection: Inspection = {
     id: backendInspection.name,
     inspectionId: backendInspection.name,
     facilityName: backendInspection.facility_name || backendInspection.facility,
@@ -23,7 +47,16 @@ export function transformInspection(backendInspection: BackendInspection): Inspe
     noteToInspector: backendInspection.note_to_inspector,
     status: backendInspection.status,
     company: backendInspection.company,
+    inspectedDate: backendInspection.inspected_date ? formatDateForFrontend(backendInspection.inspected_date) : undefined,
+    findingCount: backendInspection.finding_count,
   }
+
+  // Transform findings with parent context
+  if (backendInspection.findings) {
+    inspection.findings = backendInspection.findings.map(f => transformFinding(f, inspection))
+  }
+
+  return inspection
 }
 
 export function formatDateForBackend(frontendDate: string): string {
@@ -108,4 +141,24 @@ export async function listProfessionals(): Promise<Professional[]> {
     `/api/resource/Professional?fields=["name","professional_name"]&filters=[["disabled","=",0]]`
   )
   return response.data
+}
+
+export async function listFindings(): Promise<Finding[]> {
+  // First get list of inspections (with finding_count but no nested findings)
+  const inspectionsList = await listInspections()
+
+  // Filter to inspections that have findings
+  const inspectionsWithFindings = inspectionsList.filter(i => (i.findingCount || 0) > 0)
+
+  // Fetch full details in batches of 10 to avoid overwhelming browser
+  const fullInspections = await batchPromises(
+    inspectionsWithFindings,
+    (inspection) => getInspection(inspection.id),
+    10
+  )
+
+  // Flatten all findings from all inspections
+  return fullInspections
+    .filter(i => i.findings && i.findings.length > 0)
+    .flatMap(i => i.findings!)
 }

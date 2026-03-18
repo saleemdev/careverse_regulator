@@ -17,6 +17,11 @@ def execute():
 	frappe.reload_doc("careverse_regulator", "doctype", "professional")
 	frappe.reload_doc("careverse_regulator", "doctype", "inspection")
 
+	# Check if table exists first
+	if not frappe.db.table_exists("tabInspection"):
+		frappe.logger().info("Inspection table does not exist yet, skipping migration")
+		return
+
 	# Check if old fields exist (this patch should run only once)
 	if not frappe.db.has_column("tabInspection", "facility_name"):
 		frappe.log_error(

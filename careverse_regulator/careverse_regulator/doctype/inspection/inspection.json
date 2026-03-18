@@ -10,8 +10,10 @@
   "company",
   "facility",
   "inspection_date",
+  "inspected_date",
   "professional",
   "note_to_inspector",
+  "findings",
   "status"
  ],
  "fields": [
@@ -51,6 +53,12 @@
    "reqd": 1
   },
   {
+   "fieldname": "inspected_date",
+   "fieldtype": "Date",
+   "label": "Inspected Date",
+   "description": "Actual date when inspection was conducted"
+  },
+  {
    "fieldname": "professional",
    "fieldtype": "Link",
    "get_query": "{\"filters\": {\"disabled\": 0}}",
@@ -63,6 +71,13 @@
    "fieldname": "note_to_inspector",
    "fieldtype": "Text",
    "label": "Note To Inspector"
+  },
+  {
+   "fieldname": "findings",
+   "fieldtype": "Table",
+   "label": "Findings",
+   "options": "Inspection Finding",
+   "description": "Inspection findings and compliance issues"
   },
   {
    "default": "Pending",

@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Button, Empty } from 'antd'
 import { ProCard } from '@ant-design/pro-components'
 import { useInspectionStore } from '@/stores/inspectionStore'
-import type { Inspection } from '@/types/inspection'
+import type { Inspection, Finding } from '@/types/inspection'
 import { useFindingsStore } from '@/stores/findingsStore'
-import type { Finding } from '@/stores/findingsStore'
+import * as inspectionApi from '@/api/inspectionApi'
 import { useResponsive } from '@/hooks/useResponsive'
 import { showSuccess, showError, extractErrorMessage } from '@/utils/toast'
 import InspectionTable from './InspectionTable'
@@ -15,7 +15,7 @@ import InspectionDetailModal from './InspectionDetailModal'
 import FindingsTable from './FindingsTable'
 import FindingCard from './FindingCard'
 import FindingsFilters from './FindingsFilters'
-import FindingsDetailModal from './FindingsDetailModal'
+import FindingsDrawer from './FindingsDrawer'
 import dayjs from 'dayjs'
 
 interface InspectionViewProps {
@@ -25,7 +25,7 @@ interface InspectionViewProps {
 
 export default function InspectionView({ onNavigate, company }: InspectionViewProps) {
   const { inspections, facilities, professionals, loading, error, activeTab, setActiveTab, fetchInspections, fetchFacilities, fetchProfessionals, createInspection } = useInspectionStore()
-  const { findings, applyMockForCompany: applyFindingsMock } = useFindingsStore()
+  const { findings, fetchFindings } = useFindingsStore()
   const { isMobile, isTablet } = useResponsive()
 
   // Inspection tab state
@@ -51,14 +51,15 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
   const [selectedFindingStatuses, setSelectedFindingStatuses] = useState<string[]>(['all'])
   const [findingsSortOrder, setFindingsSortOrder] = useState<'asc' | 'desc' | 'recent'>('asc')
   const [selectedFindingRowKeys, setSelectedFindingRowKeys] = useState<React.Key[]>([])
-  const [selectedFinding, setSelectedFinding] = useState<Finding | null>(null)
+  const [selectedInspectionForDrawer, setSelectedInspectionForDrawer] = useState<Inspection | null>(null)
+  const [loadingInspectionDetails, setLoadingInspectionDetails] = useState(false)
   const [isFindingModalVisible, setIsFindingModalVisible] = useState(false)
 
   useEffect(() => {
     fetchInspections()
     fetchFacilities()
     fetchProfessionals()
-    applyFindingsMock(company)
+    fetchFindings()
   }, [])
 
   // Get facilities and professionals from the store
@@ -130,9 +131,19 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
       return 0
     })
 
-  const handleViewFinding = (finding: Finding) => {
-    setSelectedFinding(finding)
-    setIsFindingModalVisible(true)
+  const handleViewFinding = async (finding: Finding) => {
+    if (!finding.inspectionId || loadingInspectionDetails) return
+
+    setLoadingInspectionDetails(true)
+    try {
+      const fullInspection = await inspectionApi.getInspection(finding.inspectionId)
+      setSelectedInspectionForDrawer(fullInspection)
+      setIsFindingModalVisible(true)
+    } catch (error) {
+      showError('Failed to load inspection details')
+    } finally {
+      setLoadingInspectionDetails(false)
+    }
   }
 
   return (
@@ -376,13 +387,13 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
         inspection={selectedInspection}
       />
 
-      <FindingsDetailModal
+      <FindingsDrawer
         open={isFindingModalVisible}
         onClose={() => {
           setIsFindingModalVisible(false)
-          setSelectedFinding(null)
+          setSelectedInspectionForDrawer(null)
         }}
-        finding={selectedFinding}
+        inspection={selectedInspectionForDrawer}
       />
     </div>
   )
