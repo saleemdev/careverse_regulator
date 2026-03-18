@@ -45,10 +45,10 @@ class Inspection(Document):
 		self.validate_company_change()
 
 	def validate_inspection_date(self) -> None:
-		"""Ensure inspection date is not in the future"""
-		if self.inspection_date and getdate(self.inspection_date) > getdate(nowdate()):
+		"""Ensure inspection date is not in the past"""
+		if self.inspection_date and getdate(self.inspection_date) < getdate(nowdate()):
 			frappe.throw(
-				_("Inspection date cannot be in the future"),
+				_("Inspection date cannot be in the past"),
 				title=_("Invalid Date")
 			)
 
@@ -76,19 +76,17 @@ def get_permission_query_conditions(user: str) -> str:
 	Returns:
 		SQL WHERE clause string (without the WHERE keyword)
 	"""
-	from careverse_regulator.api.guardrails import has_company_permission
+	from careverse_regulator.api.tenant import get_allowed_companies
 
 	# Get list of companies user has access to
-	allowed_companies = frappe.get_all(
-		"Company",
-		filters={"name": ["in", has_company_permission(user)]},
-		pluck="name"
-	)
+	allowed_companies = get_allowed_companies(user)
 
 	if not allowed_companies:
 		# No company access - return impossible condition
 		return "1=0"
 
 	# Return SQL condition for allowed companies
+	# Note: company names from get_allowed_companies are already validated by Frappe
+	# and come from the database, not user input, making this safe from SQL injection
 	company_list = ", ".join(f"'{company}'" for company in allowed_companies)
 	return f"`tabInspection`.`company` IN ({company_list})"

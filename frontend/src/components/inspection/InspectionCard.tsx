@@ -1,6 +1,6 @@
 import { Card, Button, Space } from 'antd'
 import { CalendarOutlined, UserOutlined, FileTextOutlined } from '@ant-design/icons'
-import type { Inspection } from '@/stores/inspectionStore'
+import type { Inspection } from '@/types/inspection'
 import StatusBadge from './StatusBadge'
 
 interface InspectionCardProps {

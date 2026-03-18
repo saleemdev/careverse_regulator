@@ -8,9 +8,9 @@
  "field_order": [
   "naming_series",
   "company",
-  "facility_name",
+  "facility",
   "inspection_date",
-  "inspector",
+  "professional",
   "note_to_inspector",
   "status"
  ],
@@ -33,15 +33,13 @@
    "reqd": 1
   },
   {
-   "description": "Facility name - will migrate to Link field in future iteration",
-   "fieldname": "facility_name",
-   "fieldtype": "Data",
-   "in_global_search": 1,
+   "fieldname": "facility",
+   "fieldtype": "Link",
+   "get_query": "{\"filters\": {\"disabled\": 0}}",
    "in_list_view": 1,
-   "label": "Facility Name",
-   "length": 255,
-   "reqd": 1,
-   "search_index": 1
+   "label": "Facility",
+   "options": "Facility",
+   "reqd": 1
   },
   {
    "default": "Today",
@@ -53,12 +51,12 @@
    "reqd": 1
   },
   {
-   "description": "Inspector name - will migrate to Link field (User) in future iteration",
-   "fieldname": "inspector",
-   "fieldtype": "Data",
+   "fieldname": "professional",
+   "fieldtype": "Link",
+   "get_query": "{\"filters\": {\"disabled\": 0}}",
    "in_list_view": 1,
-   "label": "Inspector",
-   "length": 140,
+   "label": "Professional",
+   "options": "Professional",
    "reqd": 1
   },
   {
@@ -113,7 +111,7 @@
    "write": 0
   }
  ],
- "search_fields": "facility_name,company,inspection_date,status",
+ "search_fields": "facility,professional,company,inspection_date,status",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

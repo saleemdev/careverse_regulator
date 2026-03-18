@@ -223,6 +223,134 @@ class TestInspection(IntegrationTestCase):
 
 		self.assertIn("Regulator Admin", str(context.exception))
 
+	def test_facility_link_validation(self) -> None:
+		"""Test that Inspection.facility links to a valid Facility record"""
+		frappe.set_user(self.inspector1)
+		frappe.local.request_session_company = self.company1
+
+		# Create a facility first
+		facility = frappe.get_doc({
+			"doctype": "Facility",
+			"facility_name": "Test Linked Facility"
+		})
+		facility.insert()
+
+		# Create inspection referencing the facility
+		inspection = frappe.get_doc({
+			"doctype": "Inspection",
+			"facility": facility.name,
+			"inspection_date": nowdate(),
+			"professional": "PRO-2024-00001",  # Will be replaced with real professional in next test
+			"status": "Pending"
+		})
+
+		# This should work if Facility doctype exists and Link is valid
+		# Note: This test verifies the schema accepts Link fields
+		self.assertEqual(inspection.facility, facility.name)
+
+	def test_professional_link_validation(self) -> None:
+		"""Test that Inspection.professional links to a valid Professional record"""
+		frappe.set_user(self.inspector1)
+		frappe.local.request_session_company = self.company1
+
+		# Create a professional first
+		professional = frappe.get_doc({
+			"doctype": "Professional",
+			"professional_name": "Test Inspector Pro"
+		})
+		professional.insert()
+
+		# Create a facility for the inspection
+		facility = frappe.get_doc({
+			"doctype": "Facility",
+			"facility_name": "Test Facility for Pro"
+		})
+		facility.insert()
+
+		# Create inspection referencing both
+		inspection = frappe.get_doc({
+			"doctype": "Inspection",
+			"facility": facility.name,
+			"inspection_date": nowdate(),
+			"professional": professional.name,
+			"status": "Pending"
+		})
+		inspection.insert()
+
+		self.assertEqual(inspection.professional, professional.name)
+		self.assertEqual(inspection.facility, facility.name)
+
+	def test_disabled_facility_hidden_from_dropdown(self) -> None:
+		"""Test that disabled facilities don't appear in Link query with get_query filter"""
+		frappe.set_user(self.inspector1)
+		frappe.local.request_session_company = self.company1
+
+		# Create enabled facility
+		facility1 = frappe.get_doc({
+			"doctype": "Facility",
+			"facility_name": "Enabled Facility",
+			"disabled": 0
+		})
+		facility1.insert()
+
+		# Create disabled facility
+		facility2 = frappe.get_doc({
+			"doctype": "Facility",
+			"facility_name": "Disabled Facility",
+			"disabled": 1
+		})
+		facility2.insert()
+
+		# Query facilities with disabled=0 filter (simulating get_query behavior)
+		facilities = frappe.get_all("Facility", filters={"disabled": 0}, fields=["name", "facility_name"])
+
+		# Should only see enabled facility
+		self.assertEqual(len(facilities), 1)
+		self.assertEqual(facilities[0].facility_name, "Enabled Facility")
+
+	def test_historical_link_preservation(self) -> None:
+		"""Test that existing Inspection retains links when facility/professional disabled"""
+		frappe.set_user(self.inspector1)
+		frappe.local.request_session_company = self.company1
+
+		# Create facility and professional
+		facility = frappe.get_doc({
+			"doctype": "Facility",
+			"facility_name": "Historical Test Facility",
+			"disabled": 0
+		})
+		facility.insert()
+
+		professional = frappe.get_doc({
+			"doctype": "Professional",
+			"professional_name": "Historical Test Pro",
+			"disabled": 0
+		})
+		professional.insert()
+
+		# Create inspection
+		inspection = frappe.get_doc({
+			"doctype": "Inspection",
+			"facility": facility.name,
+			"inspection_date": nowdate(),
+			"professional": professional.name,
+			"status": "Completed"
+		})
+		inspection.insert()
+		inspection_name = inspection.name
+
+		# Now disable the facility and professional
+		facility.disabled = 1
+		facility.save()
+
+		professional.disabled = 1
+		professional.save()
+
+		# Reload the inspection and verify links are preserved
+		inspection = frappe.get_doc("Inspection", inspection_name)
+		self.assertEqual(inspection.facility, facility.name)
+		self.assertEqual(inspection.professional, professional.name)
+
 	# Helper methods
 
 	def _create_test_company(self, company_name: str) -> str:

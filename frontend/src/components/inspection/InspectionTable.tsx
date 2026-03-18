@@ -1,7 +1,7 @@
 import { Table, Button } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { ProCard } from '@ant-design/pro-components'
-import type { Inspection } from '@/stores/inspectionStore'
+import type { Inspection } from '@/types/inspection'
 import StatusBadge from './StatusBadge'
 
 interface InspectionTableProps {
