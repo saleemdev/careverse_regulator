@@ -1,8 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { RouterProvider } from '@tanstack/react-router'
 import 'dayjs/locale/en'
 import './index.css'
-import ThemeRoot from './ThemeRoot'
+import { router } from './router'
+import AuthProvider from './components/AuthProvider'
+import { RouterErrorBoundary } from './components/RouterErrorBoundary'
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {
@@ -11,6 +14,10 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ThemeRoot />
+    <RouterErrorBoundary>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </RouterErrorBoundary>
   </StrictMode>,
 )

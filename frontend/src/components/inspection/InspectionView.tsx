@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Button, Empty, Badge } from 'antd'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { Button, Empty } from 'antd'
 import { ProCard } from '@ant-design/pro-components'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useInspectionStore } from '@/stores/inspectionStore'
 import type { Inspection, Finding } from '@/types/inspection'
 import { useFindingsStore } from '@/stores/findingsStore'
@@ -21,23 +22,39 @@ import PaginationControls from './PaginationControls'
 import dayjs from 'dayjs'
 
 interface InspectionViewProps {
-  onNavigate: (route: string) => void
   company?: string | null
 }
 
-export default function InspectionView({ onNavigate, company }: InspectionViewProps) {
-  const { inspections, facilities, professionals, loading, error, activeTab, setActiveTab, pagination, setPage, fetchInspections, fetchFacilities, fetchProfessionals, createInspection } = useInspectionStore()
+export default function InspectionView({ company }: InspectionViewProps) {
+  const navigate = useNavigate({ from: '/inspection' })
+  const searchParams = useSearch({ from: '/inspection' })
+
+  const { inspections, facilities, professionals, loading, error, pagination, setPage, fetchInspections, fetchFacilities, fetchProfessionals, createInspection } = useInspectionStore()
   const { findings, fetchFindings } = useFindingsStore()
   const { isMobile, isTablet } = useResponsive()
 
-  // Inspection tab state
-  const [searchText, setSearchText] = useState('')
-  const [dateRange, setDateRange] = useState<DateRange | null>(null)
+  // Get filter values from URL params - memoize to prevent infinite loops
+  const activeTab = searchParams.activeTab || 'scheduled'
+  const searchText = searchParams.search || ''
+  const selectedStatuses = useMemo(() =>
+    searchParams.status && searchParams.status.length > 0 ? searchParams.status : ['all'],
+    [searchParams.status]
+  )
+  const dateRange: DateRange | null = useMemo(() =>
+    searchParams.startDate && searchParams.endDate
+      ? { start: searchParams.startDate, end: searchParams.endDate }
+      : null,
+    [searchParams.startDate, searchParams.endDate]
+  )
+  const sortOrder = searchParams.sortOrder === 'desc' ? 'desc' : searchParams.sortOrder === 'asc' ? 'asc' : 'recent'
+
+  // Local state for search input debouncing
+  const [localSearchText, setLocalSearchText] = useState(searchText)
+
+  // Modal and UI state (not in URL)
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [isInspectionDetailModalVisible, setIsInspectionDetailModalVisible] = useState(false)
   const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null)
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['all'])
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | 'recent'>('asc')
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [formData, setFormData] = useState({
     facility: '',
@@ -48,7 +65,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
   const [submitting, setSubmitting] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
 
-  // Findings tab state
+  // Findings tab state (could be moved to URL params in the future)
   const [findingsSearchText, setFindingsSearchText] = useState('')
   const [findingsDateRange, setFindingsDateRange] = useState<DateRange | null>(null)
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(['all'])
@@ -59,6 +76,24 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
   const [loadingInspectionDetails, setLoadingInspectionDetails] = useState(false)
   const [isFindingModalVisible, setIsFindingModalVisible] = useState(false)
 
+  // Debounce search text input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearchText !== searchText) {
+        navigate({
+          search: (prev) => ({ ...prev, search: localSearchText || undefined }),
+        })
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [localSearchText, searchText, navigate])
+
+  // Sync local search with URL on mount/change
+  useEffect(() => {
+    setLocalSearchText(searchText)
+  }, [searchText])
+
   // Calculate active findings filter count
   const activeFindingsFiltersCount =
     (findingsSearchText ? 1 : 0) +
@@ -66,13 +101,14 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
     (!selectedFindingStatuses.includes('all') ? 1 : 0) +
     (findingsDateRange ? 1 : 0)
 
+  // Initial fetch
   useEffect(() => {
-    fetchInspections()
     fetchFacilities()
     fetchProfessionals()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fetch inspections when filters change (Scheduled Inspections tab)
+  // Fetch inspections when URL params change (Scheduled Inspections tab)
   useEffect(() => {
     if (activeTab === 'scheduled') {
       const filters: any = {}
@@ -99,6 +135,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
 
       fetchInspections(1, filters)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, selectedStatuses, dateRange, sortOrder, activeTab])
 
   // Fetch findings when filters change (Findings tab)
@@ -133,6 +170,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
 
       fetchFindings(filters)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [findingsSearchText, selectedSeverities, selectedFindingStatuses, findingsDateRange, findingsSortOrder, activeTab])
 
   // Get facilities and professionals from the store
@@ -171,15 +209,15 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
     }
   }
 
-  const handleViewInspection = (inspection: Inspection) => {
+  const handleViewInspection = useCallback((inspection: Inspection) => {
     setSelectedInspection(inspection)
     setIsInspectionDetailModalVisible(true)
-  }
+  }, [])
 
   // Use findings directly from store (API-filtered)
   const filteredFindings = findings
 
-  const handleViewFinding = async (finding: Finding) => {
+  const handleViewFinding = useCallback(async (finding: Finding) => {
     if (!finding.inspectionId || loadingInspectionDetails) return
 
     setLoadingInspectionDetails(true)
@@ -192,7 +230,41 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
     } finally {
       setLoadingInspectionDetails(false)
     }
-  }
+  }, [loadingInspectionDetails])
+
+  // Handler functions that update URL params - memoize to prevent re-creation
+  const handleTabChange = useCallback((tab: 'scheduled' | 'findings') => {
+    navigate({
+      search: (prev) => ({ ...prev, activeTab: tab }),
+    })
+  }, [navigate])
+
+  const handleStatusChange = useCallback((statuses: string[]) => {
+    navigate({
+      search: (prev) => ({ ...prev, status: statuses.includes('all') ? undefined : statuses }),
+    })
+  }, [navigate])
+
+  const handleDateRangeChange = useCallback((range: DateRange | null) => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        startDate: range?.start,
+        endDate: range?.end,
+      }),
+    })
+  }, [navigate])
+
+  const handleSortChange = useCallback((order: 'asc' | 'desc' | 'recent') => {
+    const sortBy = order === 'recent' ? 'modified' : 'facility_name'
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        sortBy,
+        sortOrder: order === 'recent' ? 'desc' : order,
+      }),
+    })
+  }, [navigate])
 
   return (
     <div className="inspection-shell" style={{ padding: isMobile ? '16px' : '24px' }}>
@@ -214,7 +286,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
-                onClick={() => setActiveTab('scheduled')}
+                onClick={() => handleTabChange('scheduled')}
               >
                 <span
                   style={{
@@ -233,7 +305,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                 }}
-                onClick={() => setActiveTab('findings')}
+                onClick={() => handleTabChange('findings')}
               >
                 <span
                   style={{
@@ -298,14 +370,14 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
                 }}
               >
                 <InspectionFilters
-                  searchText={searchText}
-                  onSearchChange={setSearchText}
+                  searchText={localSearchText}
+                  onSearchChange={setLocalSearchText}
                   selectedStatuses={selectedStatuses}
-                  onStatusChange={setSelectedStatuses}
+                  onStatusChange={handleStatusChange}
                   dateRange={dateRange}
-                  onDateRangeChange={setDateRange}
+                  onDateRangeChange={handleDateRangeChange}
                   sortOrder={sortOrder}
-                  onSortChange={setSortOrder}
+                  onSortChange={handleSortChange}
                   activeFilterCount={activeInspectionFiltersCount}
                 />
               </div>

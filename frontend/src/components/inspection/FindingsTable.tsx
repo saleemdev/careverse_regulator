@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Table, Button } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { ProCard } from '@ant-design/pro-components'
@@ -17,7 +18,7 @@ export default function FindingsTable({
   onSelectionChange,
   onViewFinding,
 }: FindingsTableProps) {
-  const columns: ColumnsType<Finding> = [
+  const columns: ColumnsType<Finding> = useMemo(() => [
     {
       title: 'Finding ID',
       dataIndex: 'findingId',
@@ -82,12 +83,12 @@ export default function FindingsTable({
         </Button>
       ),
     },
-  ]
+  ], [onViewFinding])
 
-  const rowSelection = {
+  const rowSelection = useMemo(() => ({
     selectedRowKeys,
     onChange: onSelectionChange,
-  }
+  }), [selectedRowKeys, onSelectionChange])
 
   return (
     <ProCard>

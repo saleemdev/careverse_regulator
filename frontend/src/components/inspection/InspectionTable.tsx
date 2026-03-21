@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Table, Button, Badge } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { ProCard } from '@ant-design/pro-components'
@@ -25,7 +26,7 @@ export default function InspectionTable({
   onSelectionChange,
   onViewInspection,
 }: InspectionTableProps) {
-  const columns: ColumnsType<Inspection> = [
+  const columns: ColumnsType<Inspection> = useMemo(() => [
     {
       title: 'Inspection ID',
       dataIndex: 'inspectionId',
@@ -86,12 +87,12 @@ export default function InspectionTable({
         </Button>
       ),
     },
-  ]
+  ], [onViewInspection])
 
-  const rowSelection = {
+  const rowSelection = useMemo(() => ({
     selectedRowKeys,
     onChange: onSelectionChange,
-  }
+  }), [selectedRowKeys, onSelectionChange])
 
   return (
     <ProCard>
