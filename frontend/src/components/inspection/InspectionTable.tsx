@@ -1,0 +1,110 @@
+import { Table, Button, Badge } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import { ProCard } from '@ant-design/pro-components'
+import type { Inspection } from '@/types/inspection'
+import StatusBadge from './StatusBadge'
+import dayjs from 'dayjs'
+
+interface InspectionTableProps {
+  inspections: Inspection[]
+  selectedRowKeys: React.Key[]
+  onSelectionChange: (keys: React.Key[]) => void
+  onViewInspection: (inspection: Inspection) => void
+}
+
+function isInspectionOverdue(inspection: Inspection): boolean {
+  if (inspection.status !== 'Pending') return false
+  const today = dayjs().startOf('day')
+  const inspectionDate = dayjs(inspection.date, 'DD/MM/YYYY')
+  return inspectionDate.isBefore(today)
+}
+
+export default function InspectionTable({
+  inspections,
+  selectedRowKeys,
+  onSelectionChange,
+  onViewInspection,
+}: InspectionTableProps) {
+  const columns: ColumnsType<Inspection> = [
+    {
+      title: 'Inspection ID',
+      dataIndex: 'inspectionId',
+      key: 'inspectionId',
+      width: 150,
+    },
+    {
+      title: 'Facility Name',
+      dataIndex: 'facilityName',
+      key: 'facilityName',
+    },
+    {
+      title: 'Date',
+      dataIndex: 'date',
+      key: 'date',
+      width: 150,
+    },
+    {
+      title: 'Inspector',
+      dataIndex: 'inspector',
+      key: 'inspector',
+      width: 180,
+    },
+    {
+      title: 'Note to Inspector',
+      dataIndex: 'noteToInspector',
+      key: 'noteToInspector',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      width: 180,
+      render: (status: Inspection['status'], record: Inspection) => {
+        if (isInspectionOverdue(record)) {
+          return <Badge color="red" text="Overdue" />
+        }
+        return <StatusBadge status={status} />
+      },
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      width: 100,
+      render: (_, record: Inspection) => (
+        <Button
+          type="primary"
+          onClick={() => onViewInspection(record)}
+          style={{
+            backgroundColor: '#11b5a1',
+            borderColor: '#11b5a1',
+            borderRadius: '8px',
+            height: '36px',
+            padding: '4px 15px',
+          }}
+        >
+          View
+        </Button>
+      ),
+    },
+  ]
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: onSelectionChange,
+  }
+
+  return (
+    <ProCard>
+      <Table
+        rowSelection={rowSelection}
+        columns={columns}
+        dataSource={inspections}
+        rowKey="id"
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: false,
+        }}
+      />
+    </ProCard>
+  )
+}

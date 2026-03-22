@@ -24,6 +24,6 @@ on_session_creation = "careverse_regulator.api.tenant.initialize_session_company
 website_route_rules = [
     {"from_route": "/login", "to_route": "login"},
     {"from_route": "/logout", "to_route": "logout"},
-    {"from_route": "/compliance-360", "to_route": "compliance-360"},
-    {"from_route": "/compliance-360/<path:app_path>", "to_route": "compliance-360"},
+    {"from_route": "/compliance-360", "to_route": "compliance_360"},
+    {"from_route": "/compliance-360/<path:app_path>", "to_route": "compliance_360"},
 ]
