@@ -32,7 +32,9 @@ export function transformFinding(backendFinding: BackendFinding, parentInspectio
     resolvedDate: backendFinding.resolved_date ? formatDateForFrontend(backendFinding.resolved_date) : undefined,
     attachments: backendFinding.attachments || [],
     // Add context from parent inspection if provided
+    facilityId: parentInspection?.facilityId,
     facilityName: parentInspection?.facilityName,
+    professionalId: parentInspection?.professionalId,
     inspectorName: parentInspection?.inspector,
     inspectionId: parentInspection?.inspectionId,
     inspectionDate: parentInspection?.date,
@@ -43,8 +45,10 @@ export function transformInspection(backendInspection: BackendInspection): Inspe
   const inspection: Inspection = {
     id: backendInspection.name,
     inspectionId: backendInspection.name,
+    facilityId: backendInspection.facility,
     facilityName: backendInspection.facility_name || backendInspection.facility,
     date: formatDateForFrontend(backendInspection.scheduled_date),
+    professionalId: backendInspection.professional,
     inspector: backendInspection.professional_name || backendInspection.professional,
     noteToInspector: backendInspection.note_to_inspector,
     status: backendInspection.status,
@@ -77,6 +81,7 @@ export interface InspectionFilters {
   sortOrder?: 'asc' | 'desc'
   severity?: string // For findings: comma-separated list
   status?: string // For inspections/findings: comma-separated list
+  page_size?: number // Number of items per page
 }
 
 export async function listInspections(
@@ -171,7 +176,7 @@ export async function listFacilities(): Promise<Facility[]> {
 
 export async function listProfessionals(): Promise<Professional[]> {
   const response = await apiRequest<FrappeListResponse<Professional>>(
-    `/api/resource/Professional Record?fields=["name","full_name"]&filters=[["active","=",1]]`
+    `/api/resource/Professional Record?fields=["name","full_name"]`
   )
   return response.data
 }
@@ -211,4 +216,44 @@ export async function listFindings(filters?: InspectionFilters): Promise<Finding
   return fullInspections
     .filter(i => i.findings && i.findings.length > 0)
     .flatMap(i => i.findings!)
+}
+
+export interface DashboardStats {
+  metrics: {
+    due_soon: number
+    completed: number
+    non_compliant: number
+    overdue: number
+    total: number
+  }
+  upcoming_inspections: Array<{
+    name: string
+    facility_name: string
+    scheduled_date: string
+    status: string
+  }>
+  compliance_rate: {
+    compliant: number
+    total: number
+  }
+  trend_data: Array<{
+    label: string
+    value: number
+    color: string
+  }>
+  recent_activity: Array<{
+    name: string
+    facility_name: string
+    inspected_date: string | null
+    scheduled_date: string
+    status: string
+    finding_count: number
+  }>
+}
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const response = await apiRequest<{ message: DashboardStats }>(
+    `/api/method/compliance_360.api.inspection.get_dashboard_stats`
+  )
+  return response.message
 }

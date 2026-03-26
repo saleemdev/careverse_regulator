@@ -1,43 +1,73 @@
-import { useEffect, useState } from 'react'
-import { Button, Empty, Badge } from 'antd'
-import { ProCard } from '@ant-design/pro-components'
+import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useInspectionStore } from '@/stores/inspectionStore'
 import type { Inspection, Finding } from '@/types/inspection'
 import { useFindingsStore } from '@/stores/findingsStore'
 import * as inspectionApi from '@/api/inspectionApi'
 import { useResponsive } from '@/hooks/useResponsive'
 import { showSuccess, showError, extractErrorMessage } from '@/utils/toast'
+import { useEntityDrawer } from '@/contexts/EntityDrawerContext'
 import InspectionTable from './InspectionTable'
 import InspectionCard from './InspectionCard'
 import InspectionFilters from './InspectionFilters'
 import type { DateRange } from './DateRangeSelector'
 import ScheduleInspectionModal from './ScheduleInspectionModal'
-import InspectionDetailModal from './InspectionDetailModal'
 import FindingsTable from './FindingsTable'
 import FindingCard from './FindingCard'
 import FindingsFilters from './FindingsFilters'
 import FindingsDrawer from './FindingsDrawer'
 import PaginationControls from './PaginationControls'
+import ExportButton from '@/components/shared/ExportButton'
+import SavedFiltersManager from '@/components/shared/SavedFiltersManager'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { FileText, ArrowLeft } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import dayjs from 'dayjs'
+// import type { Inspection, Finding } from '@/types/inspection'
+import type { ExportConfig } from '@/utils/exportUtils'
+
+interface InspectionFiltersState {
+  search?: string
+  status?: string[]
+  dateRange?: DateRange | null
+  sortOrder?: 'asc' | 'desc' | 'recent'
+}
 
 interface InspectionViewProps {
-  onNavigate: (route: string) => void
   company?: string | null
 }
 
-export default function InspectionView({ onNavigate, company }: InspectionViewProps) {
-  const { inspections, facilities, professionals, loading, error, activeTab, setActiveTab, pagination, setPage, fetchInspections, fetchFacilities, fetchProfessionals, createInspection } = useInspectionStore()
+export default function InspectionView({ company }: InspectionViewProps) {
+  const navigate = useNavigate({ from: '/inspections/list' })
+  const searchParams = useSearch({ from: '/inspections/list' })
+  const { openDrawer } = useEntityDrawer()
+
+  const { inspections, facilities, professionals, loading, error, pagination, setPage, fetchInspections, fetchFacilities, fetchProfessionals, createInspection } = useInspectionStore()
   const { findings, fetchFindings } = useFindingsStore()
   const { isMobile, isTablet } = useResponsive()
 
-  // Inspection tab state
-  const [searchText, setSearchText] = useState('')
-  const [dateRange, setDateRange] = useState<DateRange | null>(null)
+  // Get filter values from URL params - memoize to prevent infinite loops
+  const activeTab = searchParams.activeTab || 'scheduled'
+  const searchText = searchParams.search || ''
+  const modalParam = searchParams.modal
+  const selectedStatuses = useMemo(() => {
+    if (!searchParams.status) return ['all']
+    return Array.isArray(searchParams.status) ? searchParams.status : [searchParams.status]
+  }, [searchParams.status])
+  const dateRange: DateRange | null = useMemo(() =>
+    searchParams.startDate && searchParams.endDate
+      ? { start: searchParams.startDate, end: searchParams.endDate }
+      : null,
+    [searchParams.startDate, searchParams.endDate]
+  )
+  const sortOrder = searchParams.sortOrder === 'desc' ? 'desc' : searchParams.sortOrder === 'asc' ? 'asc' : 'recent'
+
+  // Local state for search input debouncing
+  const [localSearchText, setLocalSearchText] = useState(searchText)
+
+  // Modal and UI state (not in URL)
   const [isModalVisible, setIsModalVisible] = useState(false)
-  const [isInspectionDetailModalVisible, setIsInspectionDetailModalVisible] = useState(false)
-  const [selectedInspection, setSelectedInspection] = useState<Inspection | null>(null)
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(['all'])
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | 'recent'>('asc')
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
   const [formData, setFormData] = useState({
     facility: '',
@@ -48,7 +78,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
   const [submitting, setSubmitting] = useState(false)
   const [modalError, setModalError] = useState<string | null>(null)
 
-  // Findings tab state
+  // Findings tab state (could be moved to URL params in the future)
   const [findingsSearchText, setFindingsSearchText] = useState('')
   const [findingsDateRange, setFindingsDateRange] = useState<DateRange | null>(null)
   const [selectedSeverities, setSelectedSeverities] = useState<string[]>(['all'])
@@ -59,6 +89,31 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
   const [loadingInspectionDetails, setLoadingInspectionDetails] = useState(false)
   const [isFindingModalVisible, setIsFindingModalVisible] = useState(false)
 
+  // Debounce search text input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearchText !== searchText) {
+        navigate({
+          search: (prev) => ({ ...prev, search: localSearchText || undefined }),
+        })
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [localSearchText, searchText, navigate])
+
+  // Sync local search with URL on mount/change
+  useEffect(() => {
+    setLocalSearchText(searchText)
+  }, [searchText])
+
+  // Handle modal URL param
+  useEffect(() => {
+    if (modalParam === 'schedule') {
+      setIsModalVisible(true)
+    }
+  }, [modalParam])
+
   // Calculate active findings filter count
   const activeFindingsFiltersCount =
     (findingsSearchText ? 1 : 0) +
@@ -66,13 +121,14 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
     (!selectedFindingStatuses.includes('all') ? 1 : 0) +
     (findingsDateRange ? 1 : 0)
 
+  // Initial fetch
   useEffect(() => {
-    fetchInspections()
     fetchFacilities()
     fetchProfessionals()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Fetch inspections when filters change (Scheduled Inspections tab)
+  // Fetch inspections when URL params change (Scheduled Inspections tab)
   useEffect(() => {
     if (activeTab === 'scheduled') {
       const filters: any = {}
@@ -99,6 +155,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
 
       fetchInspections(1, filters)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchText, selectedStatuses, dateRange, sortOrder, activeTab])
 
   // Fetch findings when filters change (Findings tab)
@@ -133,6 +190,7 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
 
       fetchFindings(filters)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [findingsSearchText, selectedSeverities, selectedFindingStatuses, findingsDateRange, findingsSortOrder, activeTab])
 
   // Get facilities and professionals from the store
@@ -147,6 +205,20 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
 
   // Use inspections directly from store (API-filtered)
   const filteredInspections = inspections
+
+  // Export configuration for inspections
+  const inspectionExportConfig: ExportConfig<Inspection> = {
+    filename: `inspections-${dayjs().format('YYYY-MM-DD')}`,
+    title: 'Scheduled Inspections Report',
+    columns: [
+      { key: 'inspectionId', label: 'Inspection ID' },
+      { key: 'facilityName', label: 'Facility Name' },
+      { key: 'inspector', label: 'Inspector' },
+      { key: 'date', label: 'Date' },
+      { key: 'status', label: 'Status' },
+      { key: 'findingCount', label: 'Findings Count' },
+    ],
+  }
 
   const handleScheduleInspection = async () => {
     setSubmitting(true)
@@ -171,15 +243,28 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
     }
   }
 
-  const handleViewInspection = (inspection: Inspection) => {
-    setSelectedInspection(inspection)
-    setIsInspectionDetailModalVisible(true)
-  }
+  const handleViewInspection = useCallback((inspection: Inspection) => {
+    openDrawer('inspection', inspection)
+  }, [openDrawer])
 
   // Use findings directly from store (API-filtered)
   const filteredFindings = findings
 
-  const handleViewFinding = async (finding: Finding) => {
+  // Export configuration for findings
+  const findingsExportConfig: ExportConfig<Finding> = {
+    filename: `findings-${dayjs().format('YYYY-MM-DD')}`,
+    title: 'Inspection Findings Report',
+    columns: [
+      { key: 'findingId', label: 'Finding ID' },
+      { key: 'facilityName', label: 'Facility' },
+      { key: 'category', label: 'Category' },
+      { key: 'severity', label: 'Severity' },
+      { key: 'status', label: 'Status' },
+      { key: 'description', label: 'Description' },
+    ],
+  }
+
+  const handleViewFinding = useCallback(async (finding: Finding) => {
     if (!finding.inspectionId || loadingInspectionDetails) return
 
     setLoadingInspectionDetails(true)
@@ -192,56 +277,140 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
     } finally {
       setLoadingInspectionDetails(false)
     }
+  }, [loadingInspectionDetails])
+
+  // Handler functions that update URL params - memoize to prevent re-creation
+  const handleTabChange = useCallback((tab: 'scheduled' | 'findings') => {
+    navigate({
+      search: (prev) => ({ ...prev, activeTab: tab }),
+    })
+  }, [navigate])
+
+  const handleStatusChange = useCallback((statuses: string[]) => {
+    navigate({
+      search: (prev) => ({ ...prev, status: statuses.includes('all') ? undefined : statuses }),
+    })
+  }, [navigate])
+
+  const handleDateRangeChange = useCallback((range: DateRange | null) => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        startDate: range?.start,
+        endDate: range?.end,
+      }),
+    })
+  }, [navigate])
+
+  const handleSortChange = useCallback((order: 'asc' | 'desc' | 'recent') => {
+    const sortBy = order === 'recent' ? 'modified' : 'facility_name'
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        sortBy,
+        sortOrder: order === 'recent' ? 'desc' : order,
+      }),
+    })
+  }, [navigate])
+
+  // Saved Filters Integration
+  const currentInspectionFilters: InspectionFiltersState = {
+    search: searchText || undefined,
+    status: selectedStatuses.includes('all') ? undefined : selectedStatuses,
+    dateRange: dateRange || undefined,
+    sortOrder: sortOrder,
+  }
+
+  const handleApplySavedFilters = (filters: InspectionFiltersState) => {
+    setLocalSearchText(filters.search || '')
+    navigate({
+      search: {
+        activeTab,
+        search: filters.search,
+        status: filters.status,
+        startDate: filters.dateRange?.start,
+        endDate: filters.dateRange?.end,
+        sortOrder: filters.sortOrder,
+      },
+    })
+  }
+
+  const getInspectionFilterSummary = (filters: InspectionFiltersState): string => {
+    const parts: string[] = []
+    if (filters.search) parts.push(`Search: "${filters.search}"`)
+    if (filters.status && !filters.status.includes('all')) {
+      parts.push(`Status: ${filters.status.join(', ')}`)
+    }
+    if (filters.dateRange) {
+      parts.push(`Date: ${filters.dateRange.start} to ${filters.dateRange.end}`)
+    }
+    if (filters.sortOrder && filters.sortOrder !== 'recent') {
+      parts.push(`Sort: ${filters.sortOrder === 'asc' ? 'A-Z' : 'Z-A'}`)
+    }
+    return parts.join(' • ')
   }
 
   return (
-    <div className="inspection-shell" style={{ padding: isMobile ? '16px' : '24px' }}>
-      <ProCard ghost style={{ marginBottom: isMobile ? '16px' : '24px' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'flex-start', gap: isMobile ? '16px' : '0' }}>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: isMobile ? '20px' : '24px', fontWeight: 'bold', color: '#000' }}>
+    <div className={cn('inspection-shell', isMobile ? 'p-4' : 'p-6')}>
+      <div className={cn('mb-6', isMobile ? 'mb-4' : 'mb-6')}>
+        <div className={cn(
+          'flex justify-between items-start',
+          isMobile ? 'flex-col gap-4' : 'flex-row gap-0'
+        )}>
+          <div className="flex-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate({ to: '/inspections' })}
+              className={cn('mb-2 -ml-2', isMobile ? 'text-xs' : 'text-sm')}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back to Dashboard
+            </Button>
+            <h2 className={cn(
+              'font-bold text-foreground m-0',
+              isMobile ? 'text-xl' : 'text-2xl'
+            )}>
               Inspection Management
             </h2>
-            <p style={{ margin: '4px 0 0 0', fontSize: isMobile ? '14px' : '16px', fontWeight: 600, color: '#8c8c8c' }}>
+            <p className={cn(
+              'text-muted-foreground font-semibold mt-1 m-0',
+              isMobile ? 'text-sm' : 'text-base'
+            )}>
               Schedule & View Facility Inspections
             </p>
 
-            <div style={{ display: 'flex', gap: isMobile ? '12px' : '16px', marginTop: isMobile ? '16px' : '29px', overflowX: 'auto' }}>
+            <div className={cn(
+              'flex overflow-x-auto',
+              isMobile ? 'gap-3 mt-4' : 'gap-4 mt-7'
+            )}>
               <div
-                style={{
-                  borderBottom: activeTab === 'scheduled' ? '2px solid #11b5a1' : 'none',
-                  paddingBottom: '11px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-                onClick={() => setActiveTab('scheduled')}
+                className={cn(
+                  'pb-3 cursor-pointer whitespace-nowrap',
+                  activeTab === 'scheduled' && 'border-b-2 border-primary'
+                )}
+                onClick={() => handleTabChange('scheduled')}
               >
-                <span
-                  style={{
-                    fontSize: isMobile ? '13px' : '14px',
-                    fontWeight: 600,
-                    color: activeTab === 'scheduled' ? '#11b5a1' : '#667085',
-                  }}
-                >
+                <span className={cn(
+                  'font-semibold',
+                  isMobile ? 'text-xs' : 'text-sm',
+                  activeTab === 'scheduled' ? 'text-primary' : 'text-muted-foreground'
+                )}>
                   Scheduled Inspections
                 </span>
               </div>
               <div
-                style={{
-                  borderBottom: activeTab === 'findings' ? '2px solid #11b5a1' : 'none',
-                  paddingBottom: '11px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-                onClick={() => setActiveTab('findings')}
+                className={cn(
+                  'pb-3 cursor-pointer whitespace-nowrap',
+                  activeTab === 'findings' && 'border-b-2 border-primary'
+                )}
+                onClick={() => handleTabChange('findings')}
               >
-                <span
-                  style={{
-                    fontSize: isMobile ? '13px' : '14px',
-                    fontWeight: 600,
-                    color: activeTab === 'findings' ? '#11b5a1' : '#667085',
-                  }}
-                >
+                <span className={cn(
+                  'font-semibold',
+                  isMobile ? 'text-xs' : 'text-sm',
+                  activeTab === 'findings' ? 'text-primary' : 'text-muted-foreground'
+                )}>
                   Inspection Findings
                 </span>
               </div>
@@ -249,65 +418,62 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
           </div>
 
           <Button
-            type="primary"
-            size={isMobile ? 'middle' : 'large'}
+            size={isMobile ? 'default' : 'lg'}
             onClick={() => {
-              setIsModalVisible(true)
+              navigate({ search: (prev) => ({ ...prev, modal: 'schedule' }) })
               setModalError(null)
             }}
-            block={isMobile}
-            style={{
-              backgroundColor: '#11b5a1',
-              borderColor: '#11b5a1',
-              borderRadius: '10px',
-              height: isMobile ? '40px' : '44px',
-              fontSize: isMobile ? '14px' : '16px',
-              fontWeight: 600,
-            }}
+            className={cn(
+              'font-semibold whitespace-nowrap',
+              isMobile ? 'w-full h-10 text-sm' : 'h-11 text-base'
+            )}
           >
             Schedule Inspection
           </Button>
         </div>
-      </ProCard>
+      </div>
 
       {activeTab === 'scheduled' && (
         <>
           {filteredInspections.length === 0 && searchText === '' && selectedStatuses.includes('all') ? (
-            <ProCard style={{ marginTop: '80px' }}>
-              <Empty
-                description={
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: '18px', fontWeight: 600, color: '#101828', margin: '8px 0' }}>
-                      No Scheduled Inspections found
-                    </p>
-                    <p style={{ fontSize: '14px', color: '#475467', margin: 0 }}>
-                      Click on "Schedule Inspection" to input new records
-                    </p>
-                  </div>
-                }
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              />
-            </ProCard>
+            <Card className="mt-20">
+              <CardContent className={cn('flex flex-col items-center justify-center', isMobile ? 'py-12' : 'py-16')}>
+                <FileText className={cn('text-muted-foreground mb-4', isMobile ? 'w-12 h-12' : 'w-16 h-16')} />
+                <p className={cn('font-semibold text-center mb-2', isMobile ? 'text-base' : 'text-lg')}>
+                  No Scheduled Inspections found
+                </p>
+                <p className={cn('text-muted-foreground text-center m-0', isMobile ? 'text-xs' : 'text-sm')}>
+                  Click on "Schedule Inspection" to input new records
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             <>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  marginBottom: isMobile ? '16px' : '24px',
-                }}
-              >
+              <div className={cn('flex justify-between items-start gap-4', isMobile ? 'mb-4 flex-col' : 'mb-6 flex-row')}>
                 <InspectionFilters
-                  searchText={searchText}
-                  onSearchChange={setSearchText}
+                  searchText={localSearchText}
+                  onSearchChange={setLocalSearchText}
                   selectedStatuses={selectedStatuses}
-                  onStatusChange={setSelectedStatuses}
+                  onStatusChange={handleStatusChange}
                   dateRange={dateRange}
-                  onDateRangeChange={setDateRange}
+                  onDateRangeChange={handleDateRangeChange}
                   sortOrder={sortOrder}
-                  onSortChange={setSortOrder}
+                  onSortChange={handleSortChange}
                   activeFilterCount={activeInspectionFiltersCount}
                 />
+                <div className="flex gap-2">
+                  <SavedFiltersManager
+                    storageKey="inspection-saved-filters"
+                    currentFilters={currentInspectionFilters}
+                    onApplyFilters={handleApplySavedFilters}
+                    getFilterSummary={getInspectionFilterSummary}
+                  />
+                  <ExportButton
+                    data={filteredInspections}
+                    config={inspectionExportConfig}
+                    size="default"
+                  />
+                </div>
               </div>
 
               {isMobile || isTablet ? (
@@ -345,30 +511,20 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
           findingsSearchText === '' &&
           selectedSeverities.includes('all') &&
           selectedFindingStatuses.includes('all') ? (
-            <ProCard style={{ marginTop: '80px' }}>
-              <Empty
-                description={
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: '18px', fontWeight: 600, color: '#101828', margin: '8px 0' }}>
-                      No Inspection Findings available
-                    </p>
-                    <p style={{ fontSize: '14px', color: '#475467', margin: 0 }}>
-                      Inspection findings will appear here once inspections are completed
-                    </p>
-                  </div>
-                }
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-              />
-            </ProCard>
+            <Card className="mt-20">
+              <CardContent className={cn('flex flex-col items-center justify-center', isMobile ? 'py-12' : 'py-16')}>
+                <FileText className={cn('text-muted-foreground mb-4', isMobile ? 'w-12 h-12' : 'w-16 h-16')} />
+                <p className={cn('font-semibold text-center mb-2', isMobile ? 'text-base' : 'text-lg')}>
+                  No Inspection Findings available
+                </p>
+                <p className={cn('text-muted-foreground text-center m-0', isMobile ? 'text-xs' : 'text-sm')}>
+                  Inspection findings will appear here once inspections are completed
+                </p>
+              </CardContent>
+            </Card>
           ) : (
             <>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'flex-end',
-                  marginBottom: isMobile ? '16px' : '24px',
-                }}
-              >
+              <div className={cn('flex justify-between items-start gap-4', isMobile ? 'mb-4 flex-col' : 'mb-6 flex-row')}>
                 <FindingsFilters
                   searchText={findingsSearchText}
                   onSearchChange={setFindingsSearchText}
@@ -381,6 +537,11 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
                   sortOrder={findingsSortOrder}
                   onSortChange={setFindingsSortOrder}
                   activeFilterCount={activeFindingsFiltersCount}
+                />
+                <ExportButton
+                  data={filteredFindings}
+                  config={findingsExportConfig}
+                  size="default"
                 />
               </div>
 
@@ -412,6 +573,8 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
         onClose={() => {
           setIsModalVisible(false)
           setModalError(null)
+          // Clear modal param from URL
+          navigate({ search: (prev) => ({ ...prev, modal: undefined }) })
         }}
         onSubmit={handleScheduleInspection}
         formData={formData}
@@ -420,15 +583,6 @@ export default function InspectionView({ onNavigate, company }: InspectionViewPr
         inspectors={allInspectors}
         loading={submitting}
         error={modalError}
-      />
-
-      <InspectionDetailModal
-        open={isInspectionDetailModalVisible}
-        onClose={() => {
-          setIsInspectionDetailModalVisible(false)
-          setSelectedInspection(null)
-        }}
-        inspection={selectedInspection}
       />
 
       <FindingsDrawer

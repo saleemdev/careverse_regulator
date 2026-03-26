@@ -1,8 +1,10 @@
 export interface Inspection {
   id: string
   inspectionId: string
+  facilityId: string
   facilityName: string
   date: string
+  professionalId: string
   inspector: string
   noteToInspector: string
   status: 'Non Compliant' | 'Completed' | 'Pending'
@@ -97,7 +99,9 @@ export interface Finding {
   resolvedDate?: string
   attachments?: Attachment[]
   // Context fields (populated from parent inspection)
+  facilityId?: string
   facilityName?: string
+  professionalId?: string
   inspectorName?: string
   inspectionId?: string
   inspectionDate?: string

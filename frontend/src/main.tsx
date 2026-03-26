@@ -1,8 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { RouterProvider } from '@tanstack/react-router'
 import 'dayjs/locale/en'
+import 'leaflet/dist/leaflet.css'
 import './index.css'
-import ThemeRoot from './ThemeRoot'
+import { router } from './router'
+import AuthProvider from './components/AuthProvider'
+import { RouterErrorBoundary } from './components/RouterErrorBoundary'
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from 'sonner'
 
 const rootElement = document.getElementById('root')
 if (!rootElement) {
@@ -11,6 +17,13 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ThemeRoot />
+    <RouterErrorBoundary>
+      <AuthProvider>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+          <Toaster />
+        </TooltipProvider>
+      </AuthProvider>
+    </RouterErrorBoundary>
   </StrictMode>,
 )
