@@ -6,7 +6,7 @@ import { useResponsive } from "@/hooks/useResponsive"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ArrowLeft, Building2, UserRound, CheckCircle, XCircle, Ban } from "lucide-react"
+import { Building2, UserRound, CheckCircle, XCircle, Ban } from "lucide-react"
 import LicensesTable from "./LicensesTable"
 import LicenseCard from "./LicenseCard"
 import LicensesFilters from "./LicensesFilters"
@@ -16,6 +16,7 @@ import ExportButton from "@/components/shared/ExportButton"
 import SavedFiltersManager from "@/components/shared/SavedFiltersManager"
 import BulkActionsBar from "@/components/shared/BulkActionsBar"
 import BulkActionConfirmDialog from "@/components/shared/BulkActionConfirmDialog"
+import { PageHeader } from "@/components/shared/PageHeader"
 import type { License, ProfessionalLicenseRecord, LicenseAction } from "@/types/license"
 import type { ExportConfig } from "@/utils/exportUtils"
 import { toast } from "sonner"
@@ -33,7 +34,8 @@ interface LicenseFiltersState {
 
 type TabValue = "facility-licenses" | "professional-licenses"
 
-export default function LicensesListView({ company }: LicensesListViewProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function LicensesListView(_: LicensesListViewProps) {
   const navigate = useNavigate()
   const {
     licenses,
@@ -84,12 +86,13 @@ export default function LicensesListView({ company }: LicensesListViewProps) {
   const [selectedProfLicStatuses, setSelectedProfLicStatuses] = useState<string[]>(["all"])
   const [profLicSortOrder, setProfLicSortOrder] = useState<"asc" | "desc" | "recent">("recent")
 
-  // Debounce searches
+  // Debounce searches — intentionally omit filter objects from deps to avoid infinite loops
   useEffect(() => {
     const timer = setTimeout(() => {
       setLicensesFilters({ ...licensesFilters, search: facilitySearchText || undefined })
     }, 300)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facilitySearchText])
 
   useEffect(() => {
@@ -100,6 +103,7 @@ export default function LicensesListView({ company }: LicensesListViewProps) {
       })
     }, 300)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profLicSearchText])
 
   // --- Facility License Handlers ---
@@ -183,8 +187,7 @@ export default function LicensesListView({ company }: LicensesListViewProps) {
     setShowBulkActionDialog(true)
   }
 
-  const handleBulkActionConfirm = async (_reason?: string) => {
-    if (!bulkActionType) return { succeeded: [], failed: [] }
+  const handleBulkActionConfirm = async (/* _reason?: string */) => {
     const licenseNumbers = Array.from(selectedLicenseIds)
     const result = await bulkUpdateLicenseStatus(licenseNumbers, bulkActionType)
     if (result.succeeded.length > 0) {
@@ -318,33 +321,29 @@ export default function LicensesListView({ company }: LicensesListViewProps) {
 
   return (
     <div className="space-y-6">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate({ to: "/license-management" })}
-        className="-ml-2"
-      >
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to Dashboard
-      </Button>
+      <PageHeader
+        breadcrumbs={[
+          { label: "License Management", href: "/license-management" },
+          { label: "Licenses" },
+        ]}
+        title="Licenses"
+      />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)} className="w-full">
-        <div className="mb-6">
-          <TabsList>
-            <TabsTrigger value="facility-licenses">
-              <Building2 className="h-4 w-4 mr-1.5" />
-              Facility Licenses
-            </TabsTrigger>
-            <TabsTrigger value="professional-licenses">
-              <UserRound className="h-4 w-4 mr-1.5" />
-              Professional Licenses
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        <TabsList>
+          <TabsTrigger value="facility-licenses">
+            <Building2 className="h-4 w-4 mr-1.5" />
+            Facility Licenses
+          </TabsTrigger>
+          <TabsTrigger value="professional-licenses">
+            <UserRound className="h-4 w-4 mr-1.5" />
+            Professional Licenses
+          </TabsTrigger>
+        </TabsList>
 
         {/* ==================== Facility Licenses ==================== */}
-        <TabsContent value="facility-licenses" className="space-y-6">
-          <div className="flex justify-between items-start gap-4 flex-wrap">
+        <TabsContent value="facility-licenses" className="space-y-6 mt-4">
+          <div className="flex items-start gap-3 flex-wrap justify-between">
             <LicensesFilters
               searchText={facilitySearchText}
               onSearchChange={setFacilitySearchText}
@@ -370,7 +369,7 @@ export default function LicensesListView({ company }: LicensesListViewProps) {
                 }
                 getFilterSummary={getLicenseFilterSummary}
               />
-              <ExportButton data={licenses} config={facilityLicenseExportConfig} size="default" />
+              <ExportButton data={licenses} config={facilityLicenseExportConfig} size="sm" />
             </div>
           </div>
 
@@ -457,8 +456,8 @@ export default function LicensesListView({ company }: LicensesListViewProps) {
         </TabsContent>
 
         {/* ==================== Professional Licenses ==================== */}
-        <TabsContent value="professional-licenses" className="space-y-6">
-          <div className="flex justify-between items-start gap-4 flex-wrap">
+        <TabsContent value="professional-licenses" className="space-y-6 mt-4">
+          <div className="flex items-start gap-3 flex-wrap justify-between">
             <LicensesFilters
               searchText={profLicSearchText}
               onSearchChange={setProfLicSearchText}
@@ -487,7 +486,7 @@ export default function LicensesListView({ company }: LicensesListViewProps) {
               <ExportButton
                 data={professionalLicenses}
                 config={profLicenseExportConfig}
-                size="default"
+                size="sm"
               />
             </div>
           </div>
