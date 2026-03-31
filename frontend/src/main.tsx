@@ -1,16 +1,29 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import 'dayjs/locale/en'
-import './index.css'
-import ThemeRoot from './ThemeRoot'
+import { StrictMode } from "react"
+import { createRoot } from "react-dom/client"
+import { RouterProvider } from "@tanstack/react-router"
+import "dayjs/locale/en"
+import "leaflet/dist/leaflet.css"
+import "./index.css"
+import { router } from "./router"
+import AuthProvider from "./components/AuthProvider"
+import { RouterErrorBoundary } from "./components/RouterErrorBoundary"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "sonner"
 
-const rootElement = document.getElementById('root')
+const rootElement = document.getElementById("root")
 if (!rootElement) {
-  throw new Error('Root element not found')
+  throw new Error("Root element not found")
 }
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ThemeRoot />
-  </StrictMode>,
+    <RouterErrorBoundary>
+      <AuthProvider>
+        <TooltipProvider>
+          <RouterProvider router={router} />
+          <Toaster richColors theme="system" position="bottom-right" closeButton duration={4000} />
+        </TooltipProvider>
+      </AuthProvider>
+    </RouterErrorBoundary>
+  </StrictMode>
 )

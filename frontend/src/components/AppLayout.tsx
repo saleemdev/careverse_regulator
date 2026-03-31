@@ -1,41 +1,46 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from "react"
 import {
-  Avatar,
-  Badge,
-  Button,
-  Drawer,
-  Dropdown,
-  Layout,
-  Menu,
-  Tooltip,
-  Typography,
-  theme,
-} from 'antd'
-import {
-  AppstoreOutlined,
-  AuditOutlined,
-  DownOutlined,
-  BellOutlined,
-  DashboardOutlined,
-  LinkOutlined,
-  LogoutOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  MoonOutlined,
-  PartitionOutlined,
-  SafetyCertificateOutlined,
-  SettingOutlined,
-  SunOutlined,
-  TeamOutlined,
-  UserOutlined,
-} from '@ant-design/icons'
-import { useResponsive } from '@/hooks/useResponsive'
-import type { PortalUser } from '@/types/auth'
-import { useThemeStore } from '@/stores/themeStore'
+  AppWindow,
+  ClipboardCheck,
+  LayoutDashboard,
+  Link as LinkIcon,
+  LogOut,
+  PanelLeft,
+  PanelLeftClose,
+  Moon,
+  Network,
+  ShieldCheck,
+  Settings,
+  Sun,
+  Users,
+  User,
+  ChevronDown,
+  ChevronRight,
+  BarChart3,
+  FileText,
+  FileEdit,
+  ScrollText,
+  Search,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-const { Header, Sider, Content } = Layout
-const { Text } = Typography
-const FALLBACK_BRAND_ICON = '/assets/careverse_regulator/compliance-360/favicon.svg?v=20260313a'
+import NotificationCenter from "@/components/shared/NotificationCenter"
+import { GlobalSearch } from "@/components/shared/GlobalSearch"
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useResponsive } from "@/hooks/useResponsive"
+import type { PortalUser } from "@/types/auth"
+import { useThemeStore } from "@/stores/themeStore"
+import { cn } from "@/lib/utils"
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -50,360 +55,455 @@ interface AppLayoutProps {
 }
 
 function getUserInitials(fullName?: string, email?: string): string {
-  const value = fullName || email || 'U'
+  const value = fullName || email || "U"
   return value
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
-    .join('')
+    .join("")
 }
 
 function selectedMenuKeyForRoute(route: string): string {
-  if (route.startsWith('license-management')) return 'license-management'
-  if (route.startsWith('affiliations')) return 'affiliations'
-  if (route.startsWith('inspection')) return 'inspection'
-  if (route.startsWith('users-roles')) return 'users-roles'
-  if (route.startsWith('regulator-settings')) return 'regulator-settings'
-  if (route.startsWith('dashboard')) return 'dashboard'
-  return 'dashboard'
+  if (route.startsWith("license-management")) return "license-management"
+  if (route.startsWith("affiliations")) return "affiliations"
+  if (route.startsWith("inspection")) return "inspection"
+  if (route.startsWith("analytics")) return "analytics"
+  if (route.startsWith("documents")) return "documents"
+  if (route.startsWith("forms")) return "forms"
+  if (route.startsWith("audit-logs")) return "audit-logs"
+  if (route.startsWith("users-roles")) return "users-roles"
+  if (route.startsWith("regulator-settings")) return "regulator-settings"
+  if (route.startsWith("dashboard")) return "dashboard"
+  return "dashboard"
 }
 
 export default function AppLayout({
   children,
   currentRoute,
   pageTitle,
-  pageSubtitle,
+  // pageSubtitle unused — kept in props for future use
   onNavigate,
-  onOpenNotifications,
   onLogout,
   onSwitchToDesk,
   user,
 }: AppLayoutProps) {
-  const { token } = theme.useToken()
   const { isMobile, isTablet } = useResponsive()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false)
-  const [brandLogoFailed, setBrandLogoFailed] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+
   const mode = useThemeStore((state) => state.mode)
   const toggleMode = useThemeStore((state) => state.toggleMode)
-  const isDarkMode = mode === 'dark'
+  const isDarkMode = mode === "dark"
 
   useEffect(() => {
     setCollapsed(isTablet)
   }, [isTablet])
 
   const selectedMenuKey = useMemo(() => selectedMenuKeyForRoute(currentRoute), [currentRoute])
-  const pageContext = selectedMenuKey === 'dashboard' ? 'Workspace overview' : 'Operational workspace'
-  const displayUsername = user?.name || user?.email || 'User'
-  const displayCompany = user?.companyDisplayName || user?.company || 'Company not configured'
-  const brandTitle = user?.companyDisplayName || user?.company || 'Compliance360'
-  const brandSubtitle = user?.companyAbbr || 'Regulator Portal'
-  const brandLogoUrl = user?.companyLogo || FALLBACK_BRAND_ICON
+  const displayUsername = user?.name || user?.email || "User"
+  const displayCompany = user?.companyDisplayName || user?.company || "Company not configured"
+  const brandTitle = user?.companyDisplayName || user?.company || "Compliance360"
+  const brandSubtitle = user?.companyAbbr || "Regulator Portal"
 
+  // Check if user should see "Switch to Desk" link
+  // Hide for Field Inspector and Chief Inspector roles (they should use portal only)
+  const canSwitchToDesk = user?.roles?.some(
+    (role) =>
+      role === "System Manager" ||
+      role === "Regulator Admin" ||
+      role === "Regulator Manager" ||
+      role === "Compliance Regulator" ||
+      role === "Regulator User"
+  )
+
+  // Keyboard shortcut: Cmd+K / Ctrl+K to open search
   useEffect(() => {
-    setBrandLogoFailed(false)
-  }, [brandLogoUrl])
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [])
 
   const menuItems = [
     {
-      key: 'dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
+      key: "dashboard",
+      icon: LayoutDashboard,
+      label: "Dashboard",
     },
     {
-      key: 'modules',
-      icon: <AppstoreOutlined />,
-      label: 'Modules',
+      key: "analytics",
+      icon: BarChart3,
+      label: "Analytics",
+      disabled: true,
+    },
+    {
+      key: "documents",
+      icon: FileText,
+      label: "Documents",
+      disabled: true,
+    },
+    {
+      key: "forms",
+      icon: FileEdit,
+      label: "Forms",
+      disabled: true,
+    },
+    {
+      key: "modules",
+      icon: AppWindow,
+      label: "Modules",
       children: [
         {
-          key: 'license-management',
-          icon: <SafetyCertificateOutlined />,
-          label: 'Licenses',
+          key: "license-management",
+          icon: ShieldCheck,
+          label: "Licenses",
         },
         {
-          key: 'affiliations',
-          icon: <PartitionOutlined />,
-          label: 'Affiliations',
+          key: "affiliations",
+          icon: Network,
+          label: "Affiliations",
         },
         {
-          key: 'inspection',
-          icon: <AuditOutlined />,
-          label: 'Inspection',
+          key: "inspection",
+          icon: ClipboardCheck,
+          label: "Inspection",
         },
       ],
     },
     {
-      key: 'administration',
-      icon: <SettingOutlined />,
-      label: 'Administration',
+      key: "administration",
+      icon: Settings,
+      label: "Administration",
       children: [
         {
-          key: 'users-roles',
-          icon: <TeamOutlined />,
-          label: 'Users & Roles',
+          key: "users-roles",
+          icon: Users,
+          label: "Users & Roles",
         },
         {
-          key: 'regulator-settings',
-          icon: <SettingOutlined />,
-          label: 'Settings',
+          key: "audit-logs",
+          icon: ScrollText,
+          label: "Audit Logs",
+        },
+        {
+          key: "regulator-settings",
+          icon: Settings,
+          label: "Settings",
         },
       ],
     },
   ]
 
-  const userMenuItems = [
-    {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'View profile',
-    },
-    {
-      key: 'switch-desk',
-      icon: <LinkOutlined />,
-      label: 'Switch to Desk',
-    },
-    { type: 'divider' as const },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'Logout',
-      danger: true,
-    },
-  ]
+  const [openGroups, setOpenGroups] = useState<string[]>(["modules", "administration"])
 
-  const handleMenuClick = (e: { key: string }) => {
-    onNavigate(e.key)
+  const handleMenuClick = (key: string) => {
+    onNavigate(key)
     if (isMobile || isTablet) {
       setMobileMenuVisible(false)
     }
   }
 
-  const handleUserMenuClick = (e: { key: string }) => {
-    if (e.key === 'logout') {
-      onLogout()
-      return
-    }
-
-    if (e.key === 'switch-desk') {
-      onSwitchToDesk()
-      return
-    }
-
-    onNavigate(e.key)
+  const toggleGroup = (key: string) => {
+    setOpenGroups((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]))
   }
 
-  const headerActionButtonStyle = {
-    width: isMobile ? '36px' : '40px',
-    height: isMobile ? '36px' : '40px',
-    fontSize: isMobile ? '15px' : '16px',
+  const renderNavItem = (item: (typeof menuItems)[0], depth = 0) => {
+    const Icon = item.icon
+    const isSelected = selectedMenuKey === item.key
+    const hasChildren = "children" in item && item.children
+    const isOpen = openGroups.includes(item.key)
+    const isDisabled = "disabled" in item && item.disabled
+
+    if (hasChildren) {
+      return (
+        <div key={item.key} className={depth === 0 ? "mt-4" : ""}>
+          {!collapsed && (
+            <button
+              onClick={() => toggleGroup(item.key)}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 hover:text-muted-foreground transition-colors"
+              )}
+            >
+              <span>{item.label}</span>
+              <ChevronRight
+                className={cn(
+                  "w-3.5 h-3.5 transition-transform duration-200",
+                  isOpen && "rotate-90"
+                )}
+              />
+            </button>
+          )}
+          {collapsed && (
+            <button
+              onClick={() => toggleGroup(item.key)}
+              className="w-full flex items-center justify-center px-3 py-2 hover:bg-accent rounded-md transition-colors"
+            >
+              <Icon className="w-4 h-4 shrink-0 text-muted-foreground" />
+            </button>
+          )}
+          {!collapsed && isOpen && (
+            <div className="mt-0.5 space-y-0.5">
+              {item.children.map((child) => renderNavItem(child, depth + 1))}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (isDisabled) {
+      return (
+        <button
+          key={item.key}
+          disabled
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium cursor-not-allowed",
+            collapsed ? "justify-center" : "justify-start",
+            "text-muted-foreground/40"
+          )}
+        >
+          <Icon className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>{item.label}</span>}
+        </button>
+      )
+    }
+
+    return (
+      <button
+        key={item.key}
+        onClick={() => handleMenuClick(item.key)}
+        className={cn(
+          "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+          collapsed ? "justify-center" : "justify-start",
+          isSelected
+            ? "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        )}
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        {!collapsed && <span>{item.label}</span>}
+      </button>
+    )
   }
-  const notificationCount = 0
 
   const renderLogo = () => (
     <div
-      style={{
-        height: '64px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'flex-start',
-        padding: collapsed ? '0' : '0 24px',
-        borderBottom: `1px solid ${token.colorBorderSecondary}`,
-        marginBottom: '8px',
-        transition: 'all 0.2s ease',
-      }}
+      className={cn(
+        "border-b border-border mb-2 transition-all",
+        collapsed ? "flex items-center justify-center h-16 px-0" : "px-4 py-3"
+      )}
     >
       <div
-        style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '8px',
-          background: 'rgba(15, 118, 110, 0.16)',
-          border: '1px solid rgba(15, 118, 110, 0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#0f766e',
-          fontSize: '16px',
-          fontWeight: 600,
-          overflow: 'hidden',
-        }}
+        className={cn("flex items-center gap-3", collapsed ? "justify-center" : "justify-start")}
       >
-        {brandLogoUrl && !brandLogoFailed ? (
-          <img
-            src={brandLogoUrl}
-            alt={brandTitle}
-            className="header-brand-logo"
-            onError={() => setBrandLogoFailed(true)}
-          />
+        {collapsed ? (
+          <div className="w-9 h-9 shrink-0 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-base font-semibold">
+            {(brandTitle || "C").trim().charAt(0).toUpperCase()}
+          </div>
         ) : (
-          (brandTitle || 'C').trim().charAt(0).toUpperCase()
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-snug line-clamp-2">{brandTitle}</p>
+            <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider mt-0.5">
+              {brandSubtitle}
+            </p>
+          </div>
         )}
       </div>
-      {!collapsed && (
-        <div style={{ marginLeft: '12px' }}>
-          <Text style={{ margin: 0, color: token.colorText, lineHeight: 1.2, fontSize: '14px', fontWeight: 600 }}>
-            {brandTitle}
-          </Text>
-          <Text type="secondary" style={{ fontSize: '10px', fontWeight: 500 }}>{brandSubtitle}</Text>
-        </div>
-      )}
     </div>
   )
 
   const renderSidebar = () => (
-    <Sider
-      trigger={null}
-      collapsible
-      collapsed={collapsed}
-      width={260}
-      collapsedWidth={80}
-      theme={isDarkMode ? 'dark' : 'light'}
-      style={{
-        overflow: 'auto',
-        height: '100vh',
-        position: 'fixed',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        background: token.colorBgContainer,
-        borderRight: `1px solid ${token.colorBorderSecondary}`,
-        zIndex: 100,
-      }}
+    <aside
+      className={cn(
+        "fixed left-0 top-0 bottom-0 z-50 overflow-auto bg-card border-r border-border transition-all duration-200",
+        collapsed ? "w-20" : "w-64"
+      )}
     >
       {renderLogo()}
-      <Menu
-        theme={isDarkMode ? 'dark' : 'light'}
-        mode="inline"
-        selectedKeys={[selectedMenuKey]}
-        defaultOpenKeys={['modules', 'administration']}
-        items={menuItems}
-        onClick={handleMenuClick}
-        style={{ border: 'none', fontSize: '12px' }}
-      />
-    </Sider>
+      <nav className="p-2 space-y-1">{menuItems.map((item) => renderNavItem(item))}</nav>
+    </aside>
   )
 
-  const renderMobileDrawer = () => (
-    <Drawer
-      placement="left"
-      closable={false}
-      onClose={() => setMobileMenuVisible(false)}
-      open={mobileMenuVisible}
-      width={isMobile ? 280 : 300}
-      bodyStyle={{ padding: 0 }}
-      headerStyle={{ display: 'none' }}
-    >
-      {renderLogo()}
-      <Menu
-        theme={isDarkMode ? 'dark' : 'light'}
-        mode="inline"
-        selectedKeys={[selectedMenuKey]}
-        defaultOpenKeys={['modules', 'administration']}
-        items={menuItems}
-        onClick={handleMenuClick}
-        style={{ border: 'none', fontSize: '12px' }}
-      />
-    </Drawer>
+  const renderMobileNav = () => (
+    <Sheet open={mobileMenuVisible} onOpenChange={setMobileMenuVisible}>
+      <SheetContent side="left" className="w-72 p-0">
+        {renderLogo()}
+        <nav className="p-2 space-y-1">{menuItems.map((item) => renderNavItem(item))}</nav>
+      </SheetContent>
+    </Sheet>
   )
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <div className="min-h-screen bg-background">
       {!isMobile && !isTablet && renderSidebar()}
-      {(isMobile || isTablet) && renderMobileDrawer()}
+      {(isMobile || isTablet) && renderMobileNav()}
 
-      <Layout
-        style={{
-          marginLeft: (isMobile || isTablet) ? 0 : collapsed ? 80 : 260,
-          transition: 'margin-left 0.2s ease',
-        }}
+      <div
+        className={cn(
+          "transition-all duration-200",
+          isMobile || isTablet ? "ml-0" : collapsed ? "ml-20" : "ml-64"
+        )}
       >
-        <Header
-          className="hq-header-shell reg-header-shell"
-          style={{
-            padding: isMobile ? '0 12px' : '0 24px',
-            position: 'sticky',
-            top: 0,
-            zIndex: 1000,
-            height: '64px',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-          }}
-        >
-          <div className="reg-header-main">
-            <div className="reg-header-left">
+        <header className="sticky top-0 z-40 h-16 border-b border-border bg-card/80 backdrop-blur-lg px-3 md:px-6">
+          <div className="relative flex items-center justify-between h-full gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <Button
-                type="text"
-                icon={(isMobile || isTablet) ? <MenuUnfoldOutlined /> : collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                onClick={() => ((isMobile || isTablet) ? setMobileMenuVisible(true) : setCollapsed(!collapsed))}
-                className="reg-header-icon-btn reg-header-icon-btn--menu"
-                style={headerActionButtonStyle}
+                variant="ghost"
+                size="icon"
+                onClick={() =>
+                  isMobile || isTablet ? setMobileMenuVisible(true) : setCollapsed(!collapsed)
+                }
+                className={cn("shrink-0", isMobile ? "w-9 h-9" : "w-10 h-10")}
+              >
+                {isMobile || isTablet ? (
+                  <PanelLeft className="w-4 h-4" />
+                ) : collapsed ? (
+                  <PanelLeft className="w-4 h-4" />
+                ) : (
+                  <PanelLeftClose className="w-4 h-4" />
+                )}
+              </Button>
+
+              <div className="h-8 w-px bg-border shrink-0" />
+
+              {/* Logo — always visible; smaller on mobile */}
+              <img
+                src={`${import.meta.env.BASE_URL}compliance-logo.svg`}
+                alt="Compliance360"
+                className={cn(
+                  "object-contain shrink-0",
+                  isMobile ? "h-5 max-w-[90px] w-auto" : "h-7 w-auto"
+                )}
               />
 
-              <div className="reg-header-divider" />
+              <div className="h-8 w-px bg-border shrink-0" />
 
-              <div className="reg-header-context">
-                <Text className="reg-header-eyebrow">{pageContext}</Text>
-                <Text className="reg-header-title">{pageTitle}</Text>
-                {pageSubtitle && <Text className="reg-header-subtitle">{pageSubtitle}</Text>}
+              <div className="min-w-0 flex flex-col">
+                <h1 className="text-sm font-semibold leading-tight truncate">{pageTitle}</h1>
               </div>
             </div>
 
-            <div className="reg-header-right">
-              <Tooltip title="Notifications">
-                {notificationCount > 0 ? (
-                  <Badge count={notificationCount} size="small">
-                    <Button
-                      type="text"
-                      icon={<BellOutlined />}
-                      className="reg-header-icon-btn"
-                      style={headerActionButtonStyle}
-                      onClick={onOpenNotifications}
-                    />
-                  </Badge>
-                ) : (
-                  <Button
-                    type="text"
-                    icon={<BellOutlined />}
-                    className="reg-header-icon-btn"
-                    style={headerActionButtonStyle}
-                    onClick={onOpenNotifications}
-                  />
-                )}
-              </Tooltip>
-
-              <Tooltip title={isDarkMode ? 'Light Mode' : 'Dark Mode'}>
+            {/* Search bar — desktop only, absolutely centred in the header */}
+            {!isMobile && !isTablet && (
+              <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
                 <Button
-                  type="text"
-                  icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />}
-                  onClick={toggleMode}
-                  className="reg-header-icon-btn reg-header-icon-btn--theme"
-                  style={headerActionButtonStyle}
-                />
-              </Tooltip>
+                  variant="outline"
+                  className="w-72 justify-between text-muted-foreground font-normal pointer-events-auto"
+                  onClick={() => setSearchOpen(true)}
+                >
+                  <span className="flex items-center">
+                    <Search className="w-4 h-4 mr-2" />
+                    Search...
+                  </span>
+                  <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                    <span className="text-xs">⌘</span>K
+                  </kbd>
+                </Button>
+              </div>
+            )}
 
-              <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} trigger={['click']} placement="bottomRight">
-                <button type="button" className="reg-header-user-trigger" aria-label="User menu">
-                  <Avatar size="default" src={user?.userImage || undefined} className="reg-header-user-avatar">
-                    {getUserInitials(user?.fullName, user?.email)}
-                  </Avatar>
-                  {!isMobile && (
-                    <span className="reg-header-user-meta">
-                      <Text className="reg-header-user-name">{displayUsername}</Text>
-                      <Text className="reg-header-user-company">{displayCompany}</Text>
-                    </span>
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Notifications — always visible in header (bell icon only, compact) */}
+              <NotificationCenter />
+
+              {/* Theme toggle — desktop only; on mobile moves to dropdown */}
+              {!isMobile && !isTablet && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" onClick={toggleMode} className="w-10 h-10">
+                      {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{isDarkMode ? "Light Mode" : "Dark Mode"}</TooltipContent>
+                </Tooltip>
+              )}
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent transition-colors max-w-[160px]">
+                    <Avatar className="w-8 h-8 shrink-0">
+                      <AvatarImage src={user?.userImage || undefined} alt={displayUsername} />
+                      <AvatarFallback className="text-xs">
+                        {getUserInitials(user?.fullName, user?.email)}
+                      </AvatarFallback>
+                    </Avatar>
+                    {!isMobile && (
+                      <div className="flex flex-col items-start min-w-0">
+                        <span className="text-sm font-medium leading-tight truncate max-w-[100px]">
+                          {displayUsername}
+                        </span>
+                        <span className="text-xs text-muted-foreground leading-tight truncate max-w-[100px]">
+                          {user?.companyAbbr || brandSubtitle}
+                        </span>
+                      </div>
+                    )}
+                    {!isMobile && (
+                      <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {/* User info header — always shown */}
+                  <div className="px-3 py-2 border-b border-border">
+                    <p className="text-xs font-semibold text-foreground truncate">
+                      {displayUsername}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">{displayCompany}</p>
+                  </div>
+
+                  {/* Mobile-only actions: search and theme toggle */}
+                  {(isMobile || isTablet) && (
+                    <>
+                      <div className="py-1">
+                        <DropdownMenuItem onClick={() => setSearchOpen(true)}>
+                          <Search className="w-4 h-4 mr-2" />
+                          Search
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={toggleMode}>
+                          {isDarkMode ? (
+                            <Sun className="w-4 h-4 mr-2" />
+                          ) : (
+                            <Moon className="w-4 h-4 mr-2" />
+                          )}
+                          {isDarkMode ? "Light Mode" : "Dark Mode"}
+                        </DropdownMenuItem>
+                      </div>
+                      <DropdownMenuSeparator />
+                    </>
                   )}
-                  {!isMobile && <DownOutlined className="reg-header-user-caret" />}
-                </button>
-              </Dropdown>
+
+                  <DropdownMenuItem onClick={() => onNavigate("profile")}>
+                    <User className="w-4 h-4 mr-2" />
+                    View profile
+                  </DropdownMenuItem>
+                  {canSwitchToDesk && (
+                    <DropdownMenuItem onClick={onSwitchToDesk}>
+                      <LinkIcon className="w-4 h-4 mr-2" />
+                      Switch to Desk
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onLogout} className="text-destructive">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
-        </Header>
+        </header>
 
-        <Content className="hq-content-shell">
-          {children}
-        </Content>
-      </Layout>
-    </Layout>
+        <main className="p-4 md:p-6">{children}</main>
+      </div>
+      {searchOpen && <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />}
+    </div>
   )
 }

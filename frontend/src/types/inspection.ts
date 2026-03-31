@@ -1,14 +1,22 @@
 export interface Inspection {
   id: string
   inspectionId: string
+  facilityId: string
   facilityName: string
   date: string
-  inspector: string
+  assignedTo: string
+  inspectorName: string
   noteToInspector: string
-  status: 'Non Compliant' | 'Completed' | 'Pending'
+  status: "Assigned" | "In Progress" | "Submitted" | "Reviewed" | "Cancelled"
+  inspectionType: "Routine" | "Follow-up" | "Complaint-driven" | "License Renewal"
+  priority?: "Routine" | "Urgent" | "High Priority"
   company?: string
   findings?: Finding[]
   inspectedDate?: string
+  submittedDate?: string
+  reviewedDate?: string
+  reviewedBy?: string
+  reviewComments?: string
   findingCount?: number
 }
 
@@ -17,13 +25,19 @@ export interface BackendInspection {
   facility: string
   facility_name?: string
   scheduled_date: string
-  professional: string
-  professional_name?: string
+  assigned_to: string
+  inspector_name?: string
   note_to_inspector: string
-  status: 'Non Compliant' | 'Completed' | 'Pending'
+  status: "Assigned" | "In Progress" | "Submitted" | "Reviewed" | "Cancelled"
+  inspection_type: "Routine" | "Follow-up" | "Complaint-driven" | "License Renewal"
+  priority?: "Routine" | "Urgent" | "High Priority"
   company?: string
   findings?: BackendFinding[]
   inspected_date?: string
+  submitted_date?: string
+  reviewed_date?: string
+  reviewed_by?: string
+  review_comments?: string
   finding_count?: number
 }
 
@@ -52,18 +66,23 @@ export interface FrappeDocResponse {
 export interface CreateInspectionPayload {
   facility: string
   scheduled_date: string
-  professional: string
+  assigned_to: string
+  inspection_type: "Routine" | "Follow-up" | "Complaint-driven" | "License Renewal"
+  priority?: "Routine" | "Urgent" | "High Priority"
   note_to_inspector: string
-  status?: 'Non Compliant' | 'Completed' | 'Pending'
+  status?: "Assigned" | "In Progress" | "Submitted" | "Reviewed" | "Cancelled"
   company?: string
 }
 
 export interface UpdateInspectionPayload {
   facility?: string
   scheduled_date?: string
-  professional?: string
+  assigned_to?: string
+  inspection_type?: "Routine" | "Follow-up" | "Complaint-driven" | "License Renewal"
+  priority?: "Routine" | "Urgent" | "High Priority"
   note_to_inspector?: string
-  status?: 'Non Compliant' | 'Completed' | 'Pending'
+  status?: "Assigned" | "In Progress" | "Submitted" | "Reviewed" | "Cancelled"
+  review_comments?: string
 }
 
 export interface Facility {
@@ -71,9 +90,10 @@ export interface Facility {
   facility_name: string
 }
 
-export interface Professional {
+export interface Inspector {
   name: string
   full_name: string
+  email: string
 }
 
 export interface Attachment {
@@ -87,17 +107,19 @@ export interface Attachment {
 export interface Finding {
   id: string
   findingId: string
-  idx: number  // Child table row index
+  idx: number // Child table row index
   category: string
-  severity: 'Critical' | 'Major' | 'Minor'
+  severity: "Critical" | "Major" | "Minor"
   description: string
-  status: 'Open' | 'In Progress' | 'Resolved'
+  status: "Open" | "In Progress" | "Resolved"
   correctiveAction?: string
   dueDate?: string
   resolvedDate?: string
   attachments?: Attachment[]
   // Context fields (populated from parent inspection)
+  facilityId?: string
   facilityName?: string
+  professionalId?: string
   inspectorName?: string
   inspectionId?: string
   inspectionDate?: string
@@ -107,9 +129,9 @@ export interface BackendFinding {
   name: string
   idx: number
   category: string
-  severity: 'Critical' | 'Major' | 'Minor'
+  severity: "Critical" | "Major" | "Minor"
   description: string
-  status: 'Open' | 'In Progress' | 'Resolved'
+  status: "Open" | "In Progress" | "Resolved"
   corrective_action?: string | null
   due_date?: string | null
   resolved_date?: string | null

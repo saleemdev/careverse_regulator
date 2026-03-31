@@ -11,6 +11,13 @@ node_modules
 dist
 dist-ssr
 *.local
+yarn.lock
+
+# TanStack Router generated files
+src/routeTree.gen.ts
+
+# TanStack Router generated files
+src/routeTree.gen.ts
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +29,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.tanstack/

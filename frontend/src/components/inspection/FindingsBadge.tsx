@@ -1,115 +1,86 @@
-import { Tag } from 'antd'
-import type { Finding } from '@/stores/findingsStore'
+import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import type { Finding } from "@/stores/findingsStore"
 
 interface FindingsBadgeProps {
-  severity?: Finding['severity']
-  status?: Finding['status']
+  severity?: Finding["severity"]
+  status?: Finding["status"]
 }
 
 export default function FindingsBadge({ severity, status }: FindingsBadgeProps) {
   if (severity) {
     const severityConfig = {
       Critical: {
-        color: '#FEF3F2',
-        borderColor: '#FECDCA',
-        textColor: '#B42318',
-        text: 'Critical',
+        className:
+          "bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-400",
+        dotClassName: "bg-red-800 dark:bg-red-400",
+        text: "Critical",
       },
       Major: {
-        color: '#FFFAEB',
-        borderColor: '#FEDF89',
-        textColor: '#B54708',
-        text: 'Major',
+        className:
+          "bg-yellow-50 border-yellow-200 text-yellow-800 dark:bg-yellow-950 dark:border-yellow-800 dark:text-yellow-400",
+        dotClassName: "bg-yellow-800 dark:bg-yellow-400",
+        text: "Major",
       },
       Minor: {
-        color: '#F0F9FF',
-        borderColor: '#B9E6FE',
-        textColor: '#026AA2',
-        text: 'Minor',
+        className:
+          "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-400",
+        dotClassName: "bg-blue-800 dark:bg-blue-400",
+        text: "Minor",
       },
     }
 
     const config = severityConfig[severity]
 
     return (
-      <Tag
-        style={{
-          backgroundColor: config.color,
-          borderColor: config.borderColor,
-          color: config.textColor,
-          padding: '2px 10px 2px 8px',
-          borderRadius: '16px',
-          fontSize: '14px',
-          fontWeight: 500,
-          border: '1px solid',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}
+      <Badge
+        variant="outline"
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm font-medium",
+          config.className
+        )}
       >
-        <span
-          style={{
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            backgroundColor: config.textColor,
-          }}
-        />
+        <span className={cn("w-1.5 h-1.5 rounded-full", config.dotClassName)} />
         {config.text}
-      </Tag>
+      </Badge>
     )
   }
 
   if (status) {
     const statusConfig = {
       Open: {
-        color: '#FEF3F2',
-        borderColor: '#FECDCA',
-        textColor: '#B42318',
-        text: 'Open',
+        className:
+          "bg-red-50 border-red-200 text-red-800 dark:bg-red-950 dark:border-red-800 dark:text-red-400",
+        dotClassName: "bg-red-800 dark:bg-red-400",
+        text: "Open",
       },
-      'Resolved': {
-        color: '#ECFDF3',
-        borderColor: '#ABEFC6',
-        textColor: '#067647',
-        text: 'Resolved',
+      Resolved: {
+        className:
+          "bg-green-50 border-green-200 text-green-800 dark:bg-green-950 dark:border-green-800 dark:text-green-400",
+        dotClassName: "bg-green-800 dark:bg-green-400",
+        text: "Resolved",
       },
-      'In Progress': {
-        color: '#F0F9FF',
-        borderColor: '#B9E6FE',
-        textColor: '#026AA2',
-        text: 'In Progress',
+      "In Progress": {
+        className:
+          "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-400",
+        dotClassName: "bg-blue-800 dark:bg-blue-400",
+        text: "In Progress",
       },
     }
 
     const config = statusConfig[status]
 
     return (
-      <Tag
-        style={{
-          backgroundColor: config.color,
-          borderColor: config.borderColor,
-          color: config.textColor,
-          padding: '2px 10px 2px 8px',
-          borderRadius: '16px',
-          fontSize: '14px',
-          fontWeight: 500,
-          border: '1px solid',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '6px',
-        }}
+      <Badge
+        variant="outline"
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm font-medium",
+          config.className
+        )}
       >
-        <span
-          style={{
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            backgroundColor: config.textColor,
-          }}
-        />
+        <span className={cn("w-1.5 h-1.5 rounded-full", config.dotClassName)} />
         {config.text}
-      </Tag>
+      </Badge>
     )
   }
 
