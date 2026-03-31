@@ -3,7 +3,7 @@ import { listAffiliations } from "@/api/affiliationApi"
 import AffiliationsListTable from "@/components/affiliations/AffiliationsListTable"
 
 function AffiliationsListPage() {
-  const affiliations = Route.useLoaderData()
+  const affiliations = Route.useLoaderData() as Affiliation[]
 
   return (
     <div className="hq-page-wrap">
@@ -14,8 +14,13 @@ function AffiliationsListPage() {
 
 export const Route = createFileRoute("/affiliations/list")({
   loader: async () => {
-    const response = await listAffiliations(1, 1000)
-    return response.data || []
+    try {
+      const response = await listAffiliations(1, 1000)
+      return response.data || []
+    } catch (err) {
+      console.warn("Affiliations list loader failed:", err)
+      return []
+    }
   },
   component: AffiliationsListPage,
 })
